@@ -3,10 +3,128 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Student Portal</title>
+    <title>Student & Admin Portal</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: auto; }
+        .tabs { display: flex; border-bottom: 1px solid #ccc; }
+        .tab-button { background: none; border: none; padding: 10px 15px; cursor: pointer; font-size: 16px; }
+        .tab-button.active { border-bottom: 2px solid blue; }
+        .tab-content { display: none; padding: 20px; border: 1px solid #ccc; border-top: none; }
+        .tab-content.active { display: block; }
+        form { display: flex; flex-direction: column; gap: 10px; }
+        input, button { padding: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        #results, #passwords { margin-top: 20px; }
+    </style>
 </head>
 <body>
-    <h1>Welcome to the Student Portal</h1>
-    <p>Use the API endpoints to login and view your results.</p>
+    <div class="container">
+        <h1>Student & Admin Portal</h1>
+        <div class="tabs">
+            <button class="tab-button active" onclick="openTab('studentTab')">Student</button>
+            <button class="tab-button" onclick="openTab('adminTab')">Admin</button>
+        </div>
+
+        <div id="studentTab" class="tab-content active">
+            <h2>Student Login</h2>
+            <form id="loginForm">
+                <input type="text" id="matric" placeholder="Matriculation Number" required>
+                <input type="password" id="password" placeholder="Password" required>
+                <button type="submit">Login</button>
+            </form>
+            <div id="results"></div>
+        </div>
+
+        <div id="adminTab" class="tab-content">
+            <h2>Admin - Upload Results</h2>
+            <form id="uploadForm">
+                <input type="file" id="file" accept=".csv, .xlsx" required>
+                <button type="submit">Upload</button>
+            </form>
+            <div id="passwords"></div>
+        </div>
+    </div>
+
+    <script>
+        function openTab(tabName) {
+            var i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("tab-content");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].style.display = "none";
+            }
+            tablinks = document.getElementsByClassName("tab-button");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].className = tablinks[i].className.replace(" active", "");
+            }
+            document.getElementById(tabName).style.display = "block";
+            event.currentTarget.className += " active";
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const matric = document.getElementById('matric').value;
+            const password = document.getElementById('password').value;
+            const resultsDiv = document.getElementById('results');
+
+            fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ matric, password })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Invalid credentials');
+                }
+                return response.json();
+            })
+            .then(data => {
+                let coursesHtml = '<h3>Your Results</h3><table><tr><th>Course</th><th>CA</th><th>Exam</th><th>Total</th><th>Grade</th><th>Unit</th></tr>';
+                data.courses.forEach(course => {
+                    coursesHtml += `<tr><td>${course.name}</td><td>${course.ca}</td><td>${course.exam}</td><td>${course.total}</td><td>${course.grade}</td><td>${course.unit}</td></tr>`;
+                });
+                coursesHtml += '</table>';
+                coursesHtml += `<h4>CGPA: ${data.cgpa}</h4>`;
+                resultsDiv.innerHTML = coursesHtml;
+            })
+            .catch(error => {
+                resultsDiv.innerHTML = `<p style="color: red;">${error.message}</p>`;
+            });
+        });
+
+        document.getElementById('uploadForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const fileInput = document.getElementById('file');
+            const passwordsDiv = document.getElementById('passwords');
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            fetch('/admin/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('File upload failed');
+                }
+                return response.text();
+            })
+            .then(csvData => {
+                let tableHtml = '<h3>Generated Passwords</h3><table><tr><th>Matric</th><th>Password</th></tr>';
+                const rows = csvData.trim().split('\n').slice(1);
+                rows.forEach(row => {
+                    const [matric, password] = row.split(',');
+                    tableHtml += `<tr><td>${matric}</td><td>${password}</td></tr>`;
+                });
+                tableHtml += '</table>';
+                passwordsDiv.innerHTML = tableHtml;
+            })
+            .catch(error => {
+                passwordsDiv.innerHTML = `<p style="color: red;">${error.message}</p>`;
+            });
+        });
+    </script>
 </body>
 </html>
